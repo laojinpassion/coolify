@@ -283,7 +283,99 @@ class User extends Authenticatable implements SendsEmail
 
     public function teams()
     {
-        return $this->belongsToMany(Team::class)->withPivot('role');
+        return $this->belongsToMany(Team::class)->withPivot('role', 'project_id', 'environment_id');
+    }
+
+    /**
+     * The membership scope of this user in the given team, if any.
+     *
+     * Returns null when the user is not a member or the membership is
+     * unrestricted (whole team). Otherwise:
+     *  - ['project_id' => X, 'environment_id' => null] — access limited to project X
+     *  - ['project_id' => X, 'environment_id' => Y] — access limited to environment Y of project X
+     *
+     * Admins and owners are never scoped; scope only restricts plain members.
+     */
+    public function membershipScopeFor(int $teamId): ?array
+    {
+        $team = $this->teams->where('id', $teamId)->first();
+
+        if (! $team) {
+            return null;
+        }
+
+        $role = $team->pivot->role ?? null;
+
+        if ($role === 'admin' || $role === 'owner') {
+            return null;
+        }
+
+        $projectId = $team->pivot->project_id ?? null;
+        $environmentId = $team->pivot->environment_id ?? null;
+
+        if ($projectId === null) {
+            return null;
+        }
+
+        return ['project_id' => (int) $projectId, 'environment_id' => $environmentId === null ? null : (int) $environmentId];
+    }
+
+    /**
+     * Whether this user's membership in the project's team grants access to
+     * the given project. Team admins/owners and unrestricted members pass.
+     */
+    public function canAccessProject(Project $project): bool
+    {
+        if (! $this->teams->contains('id', $project->team_id)) {
+            return false;
+        }
+
+        $scope = $this->membershipScopeFor($project->team_id);
+
+        return $scope === null || $scope['project_id'] === $project->id;
+    }
+
+    /**
+     * Whether this user's membership grants access to the given environment.
+     */
+    public function canAccessEnvironment(Environment $environment): bool
+    {
+        if (! $this->canAccessProject($environment->project)) {
+            return false;
+        }
+
+        $scope = $this->membershipScopeFor($environment->project->team_id);
+
+        return $scope === null || $scope['environment_id'] === null || $scope['environment_id'] === $environment->id;
+    }
+
+    /**
+     * Universal scope check for any team resource that belongs to an
+     * environment (applications, databases, services, ...), is polymorphically
+     * attached to another resource (environment variables), or is attached
+     * directly to a project.
+     */
+    public function canAccessResource($resource): bool
+    {
+        if (method_exists($resource, 'environment') && isset($resource->environment_id) && $resource->environment_id) {
+            $environment = $resource->environment;
+
+            return $environment !== null && $this->canAccessEnvironment($environment);
+        }
+
+        if (method_exists($resource, 'resourceable') && isset($resource->resourceable_type, $resource->resourceable_id)) {
+            $parent = $resource->resourceable;
+
+            return $parent === null || $this->canAccessResource($parent);
+        }
+
+        if (isset($resource->project_id)) {
+            $project = $resource->project ?? Project::find($resource->project_id);
+
+            return $project !== null && $this->canAccessProject($project);
+        }
+
+        return true;
     }
 
     public function changelogReads()
