@@ -75,6 +75,31 @@
                                 </button>
                             @endif
                         @endif
+                        @if (data_get($member, 'pivot.role') === 'member' && currentTeam()->projects()->count() > 0)
+                            <div class="my-1 border-t border-neutral-200 dark:border-white/[0.08]"></div>
+                            <p class="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-neutral-400 dark:text-fg-dim">
+                                Limit access to
+                            </p>
+                            @forelse (currentTeam()->projects()->orderBy('name')->get() as $scopeProject)
+                                @if (data_get($member, 'pivot.project_id') == $scopeProject->id)
+                                    <span
+                                        class="listbox-option justify-start! cursor-default! text-[11px]! text-coollabs dark:text-warning">
+                                        ✓ {{ $scopeProject->name }} (current)
+                                    </span>
+                                @else
+                                    <button type="button" class="listbox-option justify-start! text-[11px]!"
+                                        wire:click="setScope({{ $scopeProject->id }}, null)" @click="open = false">
+                                        → {{ $scopeProject->name }}
+                                    </button>
+                                @endif
+                            @endforelse
+                            @if (filled(data_get($member, 'pivot.project_id')))
+                                <button type="button" class="listbox-option justify-start! text-[11px]!"
+                                    wire:click="setScope(null, null)" @click="open = false">
+                                    Whole team (clear scope)
+                                </button>
+                            @endif
+                        @endif
                         <div class="my-1 border-t border-neutral-200 dark:border-white/[0.08]"></div>
                         <button type="button" class="listbox-option justify-start! text-error! hover:text-error!"
                             wire:click="remove" @click="open = false">
