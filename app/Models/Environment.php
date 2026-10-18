@@ -45,7 +45,22 @@ class Environment extends BaseModel
 
     public static function ownedByCurrentTeam()
     {
-        return Environment::whereRelation('project.team', 'id', currentTeam()->id)->orderBy('name');
+        $query = Environment::whereRelation('project.team', 'id', currentTeam()->id);
+
+        $user = auth()->user();
+        if ($user && ! $user->isAdminOfTeam(currentTeam()->id)) {
+            $scope = $user->membershipScopeFor(currentTeam()->id);
+
+            if ($scope !== null) {
+                $query->where('project_id', $scope['project_id']);
+
+                if ($scope['environment_id'] !== null) {
+                    $query->where('id', $scope['environment_id']);
+                }
+            }
+        }
+
+        return $query->orderBy('name');
     }
 
     public static function ownedByCurrentTeamAPI(int $teamId)
