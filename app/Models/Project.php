@@ -38,7 +38,18 @@ class Project extends BaseModel
      */
     public static function ownedByCurrentTeam()
     {
-        return Project::whereTeamId(currentTeam()->id)->orderByRaw('LOWER(name)');
+        $query = Project::whereTeamId(currentTeam()->id);
+
+        $user = auth()->user();
+        if ($user && ! $user->isAdminOfTeam(currentTeam()->id)) {
+            $scope = $user->membershipScopeFor(currentTeam()->id);
+
+            if ($scope !== null) {
+                $query->where('id', $scope['project_id']);
+            }
+        }
+
+        return $query->orderByRaw('LOWER(name)');
     }
 
     /**
