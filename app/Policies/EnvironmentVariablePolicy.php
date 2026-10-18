@@ -22,7 +22,7 @@ class EnvironmentVariablePolicy
     {
         $teamId = $this->getTeamId($environmentVariable);
 
-        return $teamId !== null && $user->teams->contains('id', $teamId);
+        return $teamId !== null && $user->teams->contains('id', $teamId) && $user->canAccessResource($environmentVariable);
     }
 
     /**
