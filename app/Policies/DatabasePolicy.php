@@ -22,7 +22,7 @@ class DatabasePolicy
     {
         $teamId = $this->getTeamId($database);
 
-        return $teamId !== null && $user->teams->contains('id', $teamId);
+        return $teamId !== null && $user->teams->contains('id', $teamId) && $user->canAccessResource($database);
     }
 
     /**
